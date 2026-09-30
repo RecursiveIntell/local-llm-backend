@@ -1,18 +1,18 @@
 # 🚀 Local LLM Backend
 
-A lightweight backend server that lets you access your local LLMs (Ollama, LMStudio) or cloud APIs (OpenAI, Anthropic, Google) from anywhere via the [Dodger Web App](https://recursiveintell.com).
+A Python/FastAPI backend for Dodger-compatible clients, supporting local model services and configured cloud providers. This repository contains the backend, not a bundled web client.
 
 ## ✨ Features
 
 - **Multi-Provider Support**: Connect to Ollama, LMStudio, OpenAI, Anthropic, Google AI, and OpenRouter
-- **Secure Tunneling**: Auto-creates a Cloudflare tunnel for remote access
+- **Optional remote access**: The convenience launcher creates a Cloudflare tunnel and exposes the API remotely
 - **Web Search**: Built-in DuckDuckGo search integration
 - **Streaming**: Real-time response streaming via WebSocket
-- **Zero Config**: Works out of the box with sensible defaults
+- **Persistent configuration**: Provider settings, API token and network binding are stored in the user configuration directory
 
 ## 🏃 Quick Start
 
-### One-Command Install (Linux/macOS)
+### Convenience launcher (installs software and exposes a tunnel)
 
 ```bash
 git clone https://github.com/RecursiveIntell/local-llm-backend.git
@@ -20,12 +20,14 @@ cd local-llm-backend
 ./start_server.sh
 ```
 
+Review `start_server.sh` before using it. It may install system software with sudo, starts a public tunnel, and uses broad `pkill` patterns for `dodger-server` and `cloudflared tunnel`, which can affect other matching processes. Use the manual loopback setup below when remote access is not intended.
+
 The script will:
 1. ✅ Check for Python 3.11+
 2. ✅ Install `cloudflared` if needed
 3. ✅ Install dependencies
 4. ✅ Start the server
-5. ✅ Create a secure tunnel
+5. ✅ Create an HTTPS tunnel (transport encryption does not establish application security)
 6. ✅ Display your **connection credentials**
 
 ### Manual Setup
@@ -42,17 +44,18 @@ source .venv/bin/activate
 # Install dependencies
 pip install -e .
 
-# Start the server
-dodger-server --host 0.0.0.0 --port 8000
+# Set the saved binding explicitly before starting
+python -c "from dodger.config import config_manager; config_manager.load(); config_manager.settings.server.host = '127.0.0.1'; config_manager.settings.server.port = 8000; config_manager.save()"
+dodger-server
 ```
 
-## 🔗 Connecting to the Web App
+The current `dodger-server` entry point does not parse `--host` or `--port`; it reads `server.host` and `server.port` from configuration. Both the model defaults and the launcher use `0.0.0.0`, so this is not loopback-only by default. The manual command above deliberately saves a loopback binding.
 
-1. Run the server using the quick start above
-2. Copy the **Tunnel URL** and **API Token** displayed
-3. Go to [recursiveintell.com](https://recursiveintell.com)
-4. Click ⚙️ **Settings** → **Server Connection**
-5. Paste your credentials and click **Connect**
+## Connecting a client
+
+Use a compatible client or the REST/WebSocket API below. Historical launcher text points to `recursiveintell.com`, but that link does not establish that a compatible hosted client is available. Do not paste a server token into an unverified website.
+
+For protected REST routes, send `Authorization: Bearer <your-token>`. The current WebSocket route reads a `token` query parameter; avoid sharing those URLs or logging them. The initial token is generated and printed by the server when none exists; save it securely. Configuration and the token are stored under the platform's user configuration directory (typically `~/.config/dodger/config.json` on Linux).
 
 ## 🤖 Setting Up Local LLMs
 
@@ -76,7 +79,7 @@ ollama pull llama3.2
 
 ## ☁️ Cloud Providers
 
-Configure API keys in the web app's Settings:
+Configure provider credentials through a compatible client or the authenticated provider configuration routes. Cloud requests send the selected content to that provider and may incur its usage charges:
 
 | Provider | Get API Key |
 |----------|-------------|
@@ -102,17 +105,31 @@ local-llm-backend/
 
 - **API Token**: Auto-generated 256-bit secure token
 - **HTTPS**: Cloudflare tunnel provides automatic HTTPS
-- **Local Only**: Server binds to localhost by default
+- **Binding**: Default `0.0.0.0` listens on every interface; configure loopback explicitly for local-only access
+- **Deployment**: A tunnel URL is a public exposure choice. Protect the token/configuration, review CORS, and test authentication before sharing access. No production-security certification is claimed
 
 ## 🛠️ API Endpoints
 
 | Endpoint | Method | Description |
 |----------|--------|-------------|
 | `/status` | GET | Server health check |
-| `/models` | GET | List available models |
+| `/models` | GET | List available models (Bearer token) |
+| `/conversations` | GET | List stored conversations (Bearer token) |
+| `/providers` | GET | Inspect provider configuration (Bearer token) |
+| `/providers/{provider_name}` | PUT | Change provider settings (Bearer token) |
+| `/config/active` | GET / PUT | Read or select active provider/model (Bearer token) |
+| `/token/generate` | POST | Rotate token using an existing valid token |
 | `/chat` | POST | Send chat message |
 | `/chat/stream` | WebSocket | Stream responses |
 | `/search` | POST | Web search |
+
+## Source checks
+
+```bash
+python -m compileall -q src/dodger
+```
+
+This checks syntax only. Test a loopback client, authentication failures, provider errors and stream termination before exposing the service. Live model/cloud/tunnel behavior was not validated by this documentation update.
 
 ## 📄 License
 
