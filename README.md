@@ -133,7 +133,7 @@ This checks syntax only. Test a loopback client, authentication failures, provid
 
 ## 📄 License
 
-MIT License - Use freely!
+`pyproject.toml` declares MIT, but this checkout does not include a standalone `LICENSE` file.
 
 ---
 
